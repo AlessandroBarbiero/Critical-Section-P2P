@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-filename = "./clients.info"
+filename="./clients.info"
 
 while read line 
 do 
-    go run . "$line" &
-done < filename
+   $TERM -e go run . "$line" &
+done < "$filename"
