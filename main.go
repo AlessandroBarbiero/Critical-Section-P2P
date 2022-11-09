@@ -15,6 +15,13 @@ import (
 	token "github.com/AlessandroBarbiero/Critical-Section-P2P/grpc"
 	"google.golang.org/grpc"
 )
+const (
+	// YYYY-MM-DD: 2022-03-23
+	YYYYMMDD = "2006-01-02"
+	// 12h hh:mm:ss: 2:23:20 PM
+	HHMMSS12h = "3:04:05 PM"
+ )
+
 
 type peer struct {
 	token.UnimplementedTokenServer
@@ -47,6 +54,9 @@ func main() {
 	}
 	defer f.Close()
 	log.SetOutput(f)
+	//set logger prefix
+	datetime := time.Now().UTC().Format(YYYYMMDD+" "+HHMMSS12h) + ": "
+	log.SetPrefix(fmt.Sprintf("Node %v", p.id) + " " + datetime)
 
 	
 	// Create listener tcp on port ownPort
@@ -62,7 +72,7 @@ func main() {
 		if err := grpcServer.Serve(list); err != nil {
 			log.Fatalf("Failed server function at P %v: %v", p.id, err)
 		}
-		log.Println("Server %d has started", p.id)
+		log.Println("Server %v has started", p.id)
 	}()
 
     // Find my next peer
@@ -76,7 +86,6 @@ func main() {
 	p.mutex.Unlock()
 
 	if p.id == 5000 {
-		fmt.Println("Sending out token")
 		request := &token.Request{}
 		p.nextPeer.Token(ctx, request)
 	}
@@ -131,7 +140,7 @@ func (p *peer) dialNextPeer() *grpc.ClientConn {
 	if err != nil {
 		log.Fatalf("Could not connect to %v: %s", p.nextPeerPort, err)
 	}
-	fmt.Printf("Connected to %v", p.nextPeerPort)
+	log.Printf("Connected to %v", p.nextPeerPort)
 	return conn
 }
 
