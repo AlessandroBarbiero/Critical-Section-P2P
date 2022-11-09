@@ -44,6 +44,14 @@ func main() {
 	defer f.Close()
 	log.SetOutput(f)
 
+	// Find my next peer
+	p.readConfigFile()
+
+	//Create the connection with the next peer
+	conn := p.dialNextPeer()
+	defer conn.Close()
+	p.nextPeer = token.NewTokenClient(conn)
+
 	// Create listener tcp on port ownPort
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", ownPort))
 	if err != nil {
@@ -59,13 +67,10 @@ func main() {
 		}
 	}()
 
-	// Find my next peer
-	p.readConfigFile()
-
-	//Create the connection with the next peer
-	conn := p.dialNextPeer()
-	defer conn.Close()
-	p.nextPeer = token.NewTokenClient(conn)
+	if p.id == 5000 {
+		request := &token.Request{}
+		p.nextPeer.Token(ctx, request)
+	}
 
 	// Take input and wait for the token to actually write in the restricted area
 	scanner := bufio.NewScanner(os.Stdin)
@@ -100,7 +105,7 @@ func (p *peer) giveTokenToNextPeer() {
 
 func (p *peer) dialNextPeer() *grpc.ClientConn {
 	var conn *grpc.ClientConn
-	fmt.Printf("Trying to dial: %v\n", p.nextPeerPort)
+	log.Printf("Trying to dial: %v\n", p.nextPeerPort)
 	conn, err := grpc.Dial(fmt.Sprintf(":%v", p.nextPeerPort), grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("Could not connect to %v: %s", p.nextPeerPort, err)
@@ -158,7 +163,7 @@ func (p *peer) readConfigFile() {
 func (p *peer) criticalArea() {
 	log.Printf("Critical area was reached by node %v\n", p.id)
 
-	name := "criticalArea.txt"
+	name := "criticalArea.log"
 	file, err := os.Create(name)
 	if err != nil {
 		log.Fatalln("Couldn't read file with ports")
@@ -170,4 +175,5 @@ func (p *peer) criticalArea() {
 	if errw != nil {
 		log.Fatalf("Couldn't write to file, error: %v\n", errw)
 	}
+	w.Flush()
 }
