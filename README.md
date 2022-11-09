@@ -8,7 +8,8 @@ Implement distributed mutual exclusion between nodes in a distributed system.
 ```
 
 The script reads port from config file `clients.info` and runs clients on those ports.
-Each stdin is spawned as new terminal emulator. Emulator name has to be saved in variable `$TERM`
+Each stdin is spawned as new terminal emulator. Emulator name has to be saved in variable `$TERM`  
+To set required terminal emulator run `TERM=${your terminal emulator}` before running `./run.sh`
 
 ## Config file
 
