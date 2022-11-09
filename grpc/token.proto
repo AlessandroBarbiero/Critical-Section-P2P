@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package token;
+option go_package = "https://github.com/AlessandroBarbiero/Critical-Section-P2P;token";
+
+
+service Token {
+    rpc token (Request) returns (Reply) {}
+}
+
+message Request {
+    
+}
+
+message Reply {
+    
+}
