@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 
 	token "github.com/AlessandroBarbiero/Critical-Section-P2P/grpc"
 	"google.golang.org/grpc"
@@ -20,6 +22,7 @@ type peer struct {
 	nextPeer     token.TokenClient
 	nextPeerPort int32
 	request      bool
+	mutex 		 sync.RWMutex
 	ctx          context.Context
 }
 
@@ -34,6 +37,7 @@ func main() {
 		id:      ownPort,
 		request: false,
 		ctx:     ctx,
+		mutex: sync.RWMutex{},
 	}
 
 	//set log file fo
@@ -44,14 +48,7 @@ func main() {
 	defer f.Close()
 	log.SetOutput(f)
 
-	// Find my next peer
-	p.readConfigFile()
-
-	//Create the connection with the next peer
-	conn := p.dialNextPeer()
-	defer conn.Close()
-	p.nextPeer = token.NewTokenClient(conn)
-
+	
 	// Create listener tcp on port ownPort
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", ownPort))
 	if err != nil {
@@ -65,9 +62,21 @@ func main() {
 		if err := grpcServer.Serve(list); err != nil {
 			log.Fatalf("Failed server function at P %v: %v", p.id, err)
 		}
+		log.Println("Server %d has started", p.id)
 	}()
 
+    // Find my next peer
+	p.readConfigFile()
+
+	//Create the connection with the next peer
+	conn := p.dialNextPeer()
+	defer conn.Close()
+	p.mutex.Lock()
+	p.nextPeer = token.NewTokenClient(conn)
+	p.mutex.Unlock()
+
 	if p.id == 5000 {
+		fmt.Println("Sending out token")
 		request := &token.Request{}
 		p.nextPeer.Token(ctx, request)
 	}
@@ -96,11 +105,23 @@ func (p *peer) Token(ctx context.Context, req *token.Request) (*token.Reply, err
 
 func (p *peer) giveTokenToNextPeer() {
 	request := &token.Request{}
-	_, err := p.nextPeer.Token(p.ctx, request)
-	if err != nil {
+	// check if connection is ready
+	for {
+		p.mutex.RLock()
+		if p.nextPeer != nil {
+			p.mutex.RUnlock()
+			break
+		}
+		p.mutex.RUnlock()
+		time.Sleep(time.Second * 1)
+	}
+
+	p.nextPeer.Token(p.ctx, request)
+	/*if err != nil {
 		log.Println("Something went wrong trying to give the token to next peer")
 	}
 	log.Printf("Got reply from id %v -> Token Passed\n", p.nextPeer)
+	*/
 }
 
 func (p *peer) dialNextPeer() *grpc.ClientConn {
@@ -110,6 +131,7 @@ func (p *peer) dialNextPeer() *grpc.ClientConn {
 	if err != nil {
 		log.Fatalf("Could not connect to %v: %s", p.nextPeerPort, err)
 	}
+	fmt.Printf("Connected to %v", p.nextPeerPort)
 	return conn
 }
 
@@ -164,16 +186,16 @@ func (p *peer) criticalArea() {
 	log.Printf("Critical area was reached by node %v\n", p.id)
 
 	name := "criticalArea.log"
-	file, err := os.Create(name)
+	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatalln("Couldn't read file with ports")
 	}
 	defer file.Close()
 
-	w := bufio.NewWriter(file)
-	_, errw := w.WriteString(fmt.Sprintf("Critical area was reached by node %v\n", p.id))
+	//w := bufio.NewWriter(file)
+	_, errw := file.WriteString(fmt.Sprintf("Critical area was reached by node %v\n", p.id))
 	if errw != nil {
 		log.Fatalf("Couldn't write to file, error: %v\n", errw)
 	}
-	w.Flush()
+	//w.Flush()
 }
