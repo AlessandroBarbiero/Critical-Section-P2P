@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 
-	ping "github.com/NaddiNadja/peer-to-peer/grpc"
+	token "github.com/AlessandroBarbiero/Critical-Section-P2P/grpc"
 	"google.golang.org/grpc"
 )
 
@@ -22,8 +22,7 @@ func main() {
 
 	p := &peer{
 		id:            ownPort,
-		amountOfPings: make(map[int32]int32),
-		clients:       make(map[int32]ping.PingClient),
+		nextPeer:       token.TokenClient,
 		ctx:           ctx,
 	}
 
@@ -68,8 +67,7 @@ func main() {
 type peer struct {
 	ping.UnimplementedPingServer
 	id            int32
-	amountOfPings map[int32]int32
-	clients       map[int32]ping.PingClient
+	nextPeer	  token.TokenClient,
 	ctx           context.Context
 }
 
@@ -90,4 +88,8 @@ func (p *peer) sendPingToAll() {
 		}
 		fmt.Printf("Got reply from id %v: %v\n", id, reply.Amount)
 	}
+}
+
+func readConfigFile() {
+
 }
