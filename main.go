@@ -15,6 +15,8 @@ import (
 	token "github.com/AlessandroBarbiero/Critical-Section-P2P/grpc"
 	"google.golang.org/grpc"
 )
+
+// datetime constants for logger
 const (
 	// YYYY-MM-DD: 2022-03-23
 	YYYYMMDD = "2006-01-02"
@@ -22,7 +24,7 @@ const (
 	HHMMSS12h = "3:04:05 PM"
  )
 
-
+// server data structure
 type peer struct {
 	token.UnimplementedTokenServer
 	id           int32
@@ -35,7 +37,10 @@ type peer struct {
 
 func main() {
 	arg1, _ := strconv.ParseInt(os.Args[1], 10, 32)
+	arg2, _ := strconv.ParseInt(os.Args[2], 10, 32)
 	ownPort := int32(arg1)
+	// node that should start sending token
+	firstNodePort := int32(arg2)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -72,8 +77,9 @@ func main() {
 		if err := grpcServer.Serve(list); err != nil {
 			log.Fatalf("Failed server function at P %v: %v", p.id, err)
 		}
-		log.Println("Server %v has started", p.id)
+		log.Printf("Server %v has started\n", p.id)
 	}()
+
 
     // Find my next peer
 	p.readConfigFile()
@@ -85,10 +91,15 @@ func main() {
 	p.nextPeer = token.NewTokenClient(conn)
 	p.mutex.Unlock()
 
-	if p.id == 5000 {
-		request := &token.Request{}
-		p.nextPeer.Token(ctx, request)
-	}
+	go func() {
+		if p.id == firstNodePort{
+			request := &token.Request{}
+			p.nextPeer.Token(ctx, request)
+		}
+	}()
+
+
+	fmt.Printf("Hi I am node %v", ownPort);
 
 	// Take input and wait for the token to actually write in the restricted area
 	scanner := bufio.NewScanner(os.Stdin)
@@ -103,10 +114,14 @@ func main() {
 }
 
 func (p *peer) Token(ctx context.Context, req *token.Request) (*token.Reply, error) {
+	// if there is a request to process 
+	// access the critical area
 	if p.request {
+		log.Println("Got token, and I need it")
 		p.criticalArea()
 		p.request = false
 	}
+	// send token to next node
 	p.giveTokenToNextPeer()
 	rep := &token.Reply{}
 	return rep, nil
@@ -194,6 +209,7 @@ func (p *peer) readConfigFile() {
 func (p *peer) criticalArea() {
 	log.Printf("Critical area was reached by node %v\n", p.id)
 
+	// open log file for append
 	name := "criticalArea.log"
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -201,10 +217,8 @@ func (p *peer) criticalArea() {
 	}
 	defer file.Close()
 
-	//w := bufio.NewWriter(file)
 	_, errw := file.WriteString(fmt.Sprintf("Critical area was reached by node %v\n", p.id))
 	if errw != nil {
 		log.Fatalf("Couldn't write to file, error: %v\n", errw)
 	}
-	//w.Flush()
 }
