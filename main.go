@@ -22,7 +22,7 @@ const (
 	YYYYMMDD = "2006-01-02"
 	// 12h hh:mm:ss: 2:23:20 PM
 	HHMMSS12h = "3:04:05 PM"
- )
+)
 
 // server data structure
 type peer struct {
@@ -31,7 +31,7 @@ type peer struct {
 	nextPeer     token.TokenClient
 	nextPeerPort int32
 	request      bool
-	mutex 		 sync.RWMutex
+	mutex        sync.RWMutex
 	ctx          context.Context
 }
 
@@ -49,7 +49,7 @@ func main() {
 		id:      ownPort,
 		request: false,
 		ctx:     ctx,
-		mutex: sync.RWMutex{},
+		mutex:   sync.RWMutex{},
 	}
 
 	//set log file fo
@@ -63,7 +63,6 @@ func main() {
 	datetime := time.Now().UTC().Format(YYYYMMDD+" "+HHMMSS12h) + ": "
 	log.SetPrefix(fmt.Sprintf("Node %v", p.id) + " " + datetime)
 
-	
 	// Create listener tcp on port ownPort
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", ownPort))
 	if err != nil {
@@ -80,8 +79,7 @@ func main() {
 		log.Printf("Server %v has started\n", p.id)
 	}()
 
-
-    // Find my next peer
+	// Find my next peer
 	p.readConfigFile()
 
 	//Create the connection with the next peer
@@ -92,14 +90,13 @@ func main() {
 	p.mutex.Unlock()
 
 	go func() {
-		if p.id == firstNodePort{
+		if p.id == firstNodePort {
 			request := &token.Request{}
 			p.nextPeer.Token(ctx, request)
 		}
 	}()
 
-
-	fmt.Printf("Hi I am node %v", ownPort);
+	fmt.Printf("Hi I am node %v", ownPort)
 
 	// Take input and wait for the token to actually write in the restricted area
 	scanner := bufio.NewScanner(os.Stdin)
@@ -114,7 +111,7 @@ func main() {
 }
 
 func (p *peer) Token(ctx context.Context, req *token.Request) (*token.Reply, error) {
-	// if there is a request to process 
+	// if there is a request to process
 	// access the critical area
 	if p.request {
 		log.Println("Got token, and I need it")
@@ -144,7 +141,7 @@ func (p *peer) giveTokenToNextPeer() {
 	/*if err != nil {
 		log.Println("Something went wrong trying to give the token to next peer")
 	}
-	log.Printf("Got reply from id %v -> Token Passed\n", p.nextPeer)
+	log.Printf("Got reply from id %v -> Token Passed\n", p.nextPeerPort)
 	*/
 }
 
@@ -188,7 +185,7 @@ func (p *peer) readConfigFile() {
 		}
 	}
 
-	// when my port is last between all ports seek go back to the beggining of file
+	// when my port is last between all ports seek go back to the beginning of file
 	// and read and store first port in file as nextPeerPort
 	if takeMe {
 		_, err = file.Seek(0, io.SeekStart)
