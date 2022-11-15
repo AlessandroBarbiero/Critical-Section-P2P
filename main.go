@@ -205,7 +205,7 @@ func (p *peer) readConfigFile() {
 // critical area that should be accessible by only one node at time
 func (p *peer) criticalArea() {
 	log.Printf("Critical area was reached by node %v\n", p.id)
-
+	time.Sleep(10 * time.Second)
 	// open log file for append
 	name := "criticalArea.log"
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
