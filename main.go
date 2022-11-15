@@ -16,15 +16,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-// datetime constants for logger
-const (
-	// YYYY-MM-DD: 2022-03-23
-	YYYYMMDD = "2006-01-02"
-	// 12h hh:mm:ss: 2:23:20 PM
-	HHMMSS12h = "3:04:05 PM"
-)
-
-// server data structure
+// Peer data structure, the mutex is used to assure that the token is passed only after the
+// next peer has been found and the connection established
 type peer struct {
 	token.UnimplementedTokenServer
 	id           int32
@@ -60,8 +53,7 @@ func main() {
 	defer f.Close()
 	log.SetOutput(f)
 	//set logger prefix
-	datetime := time.Now().UTC().Format(YYYYMMDD+" "+HHMMSS12h) + ": "
-	log.SetPrefix(fmt.Sprintf("Node %v", p.id) + " " + datetime)
+	log.SetPrefix(fmt.Sprintf("Node %v: ", p.id))
 
 	// Create listener tcp on port ownPort
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", ownPort))
@@ -85,6 +77,7 @@ func main() {
 	//Create the connection with the next peer
 	conn := p.dialNextPeer()
 	defer conn.Close()
+
 	p.mutex.Lock()
 	p.nextPeer = token.NewTokenClient(conn)
 	p.mutex.Unlock()
@@ -96,7 +89,7 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("Hi I am node %v", ownPort)
+	fmt.Printf("Hi I am node %v\n", ownPort)
 
 	// Take input and wait for the token to actually write in the restricted area
 	scanner := bufio.NewScanner(os.Stdin)
@@ -104,8 +97,8 @@ func main() {
 		if p.request {
 			log.Println("Wait, we are processing the previous request")
 		} else {
-			p.request = true
 			log.Println("Request accepted, waiting for the token to write in restricted area")
+			p.request = true
 		}
 	}
 }
@@ -124,25 +117,22 @@ func (p *peer) Token(ctx context.Context, req *token.Request) (*token.Reply, err
 	return rep, nil
 }
 
+// If the nextPeer doesn't exist yet wait for his instantiation
 func (p *peer) giveTokenToNextPeer() {
 	request := &token.Request{}
+
 	// check if connection is ready
-	for {
-		p.mutex.RLock()
-		if p.nextPeer != nil {
-			p.mutex.RUnlock()
-			break
-		}
-		p.mutex.RUnlock()
+	p.mutex.RLock()
+	np := p.nextPeer
+	p.mutex.RUnlock()
+	for np == nil {
 		time.Sleep(time.Second * 1)
+		p.mutex.RLock()
+		np = p.nextPeer
+		p.mutex.RUnlock()
 	}
 
 	p.nextPeer.Token(p.ctx, request)
-	/*if err != nil {
-		log.Println("Something went wrong trying to give the token to next peer")
-	}
-	log.Printf("Got reply from id %v -> Token Passed\n", p.nextPeerPort)
-	*/
 }
 
 func (p *peer) dialNextPeer() *grpc.ClientConn {
@@ -166,7 +156,7 @@ func (p *peer) readConfigFile() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	takeMe := false
+	foundMyPort := false
 
 	// read config file
 	// wait for finding my port
@@ -176,18 +166,18 @@ func (p *peer) readConfigFile() {
 		if e != nil {
 			log.Fatalln("Invalid value in config file")
 		}
-		if takeMe {
+		if foundMyPort {
 			p.nextPeerPort = int32(id)
 			return
 		}
 		if int32(id) == p.id {
-			takeMe = true
+			foundMyPort = true
 		}
 	}
 
 	// when my port is last between all ports seek go back to the beginning of file
 	// and read and store first port in file as nextPeerPort
-	if takeMe {
+	if foundMyPort {
 		_, err = file.Seek(0, io.SeekStart)
 		if err != nil {
 			log.Fatalln("Couldn't seek start of file, while reading config file")
@@ -202,11 +192,15 @@ func (p *peer) readConfigFile() {
 	}
 }
 
-// critical area that should be accessible by only one node at time
+// Critical area that should be accessible by only one node at a time, to show the correctness of the algorithm
+// a delay is added to simulate a heavy utilization of the restricted area, in this time only one node can access it
 func (p *peer) criticalArea() {
 	log.Printf("Critical area was reached by node %v\n", p.id)
+
+	//Add a delay for demonstration purpose before writing in the file
 	time.Sleep(10 * time.Second)
-	// open log file for append
+
+	// open criticalArea file for append
 	name := "criticalArea.log"
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
